@@ -1,0 +1,53 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Source Files\FileLocker">
+      <UniqueIdentifier>{7711e20e-05ab-4203-8ab9-d52f41d5b684}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Common">
+      <UniqueIdentifier>{502a30b5-bc89-4dd3-9b93-d2bdbb55ee5b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\ModuleManager">
+      <UniqueIdentifier>{d15512fc-4a8e-4bf5-8332-091fe635adf9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\StringManager">
+      <UniqueIdentifier>{af7641ce-8e01-4a61-877e-f95e56e07c05}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="FileLocker.cpp">
+      <Filter>Source Files\FileLocker</Filter>
+    </ClCompile>
+    <ClCompile Include="ModuleManager.cpp">
+      <Filter>Source Files\ModuleManager</Filter>
+    </ClCompile>
+    <ClCompile Include="StringManager.cpp">
+      <Filter>Source Files\StringManager</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="FileLocker.h">
+      <Filter>Source Files\FileLocker</Filter>
+    </ClInclude>
+    <ClInclude Include="Common.h">
+      <Filter>Source Files\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="ModuleManager.h">
+      <Filter>Source Files\ModuleManager</Filter>
+    </ClInclude>
+    <ClInclude Include="StringManager.h">
+      <Filter>Source Files\StringManager</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
