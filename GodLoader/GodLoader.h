@@ -20,27 +20,33 @@ LPVOID LoadDll(LPVOID data, unsigned long dataSize);
  */
 DWORD GetSizeOfImage(LPVOID data);
 
-// 将内存DLL数据按SectionAlignment大小对齐映射到进程内存中
-// lpData: 内存DLL文件数据的基址
-// lpBaseAddress: 内存DLL数据按SectionAlignment大小对齐映射到进程内存中的内存基址
-// 返回值: 成功返回TRUE，否则返回FALSE
+/*
+ * @brief: 将内存DLL数据按SectionAlignment大小对齐映射到进程内存中
+ * @param: [data] 内存DLL文件数据的基址
+ * @param: [baseAddress] 内存DLL数据按SectionAlignment大小对齐映射到进程内存中的内存基址
+ */
 bool MapDataToMemory(LPVOID data, LPVOID baseAddress);
+
+/*
+ * @brief: 修正PE文件重定位表信息
+ * @return: 成功 [true]，失败 [false]
+ */
+bool FixRelocationTable(LPVOID baseAddress);
+
+/*
+ * @brief: 修正PE文件导入表信息
+ * @return: 成功 [true]，失败 [false]
+ */
+bool FixImportTable(LPVOID baseAddress);
+
+
+
 
 // 对齐SectionAlignment
 // dwSize: 表示未对齐前内存的大小
 // dwAlignment: 对齐大小值
 // 返回值: 返回内存对齐之后的值
 DWORD Align(DWORD dwSize, DWORD dwAlignment);
-
-// 修改PE文件重定位表信息
-// lpBaseAddress: 内存DLL数据按SectionAlignment大小对齐映射到进程内存中的内存基址
-// 返回值: 成功返回TRUE，否则返回FALSE
-BOOL DoRelocationTable(LPVOID lpBaseAddress);
-
-// 填写PE文件导入表信息
-// lpBaseAddress: 内存DLL数据按SectionAlignment大小对齐映射到进程内存中的内存基址
-// 返回值: 成功返回TRUE，否则返回FALSE
-BOOL DoImportTable(LPVOID lpBaseAddress);
 
 // 修改PE文件加载基址IMAGE_NT_HEADERS.OptionalHeader.ImageBase
 // lpBaseAddress: 内存DLL数据按SectionAlignment大小对齐映射到进程内存中的内存基址
