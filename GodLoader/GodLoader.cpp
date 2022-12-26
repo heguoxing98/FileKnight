@@ -125,7 +125,8 @@ bool FixRelocationTable(LPVOID baseAddress)
 				// 32位dll重定位，IMAGE_REL_BASED_HIGHLOW
 				// 对于x86的可执行文件，所有的基址重定位都是IMAGE_REL_BASED_HIGHLOW类型的。
 				// 
-				// 关于修复重定位表的理解，举个例子：
+				// 关于修复重定位表的理解，https://cloud.tencent.com/developer/article/1432449
+				// 举个例子：
 				// 前提PE文件默认加载位置是0x40000。假设在生成PE文件 B.dll 的时候有一个全局变量的 globalValue, globalValue 的地址是0x40123。
 				// 当一个EXE加载 B.dll 时，加载位置为 0x5000。我们知道汇编在进行赋值给寄存器时，
 				// 会有取地址运算` mov ebp [0x401234] `，那程序栈内就会有个地址（假设为0x51567，-
