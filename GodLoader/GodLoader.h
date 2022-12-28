@@ -39,7 +39,7 @@ bool FixRelocationTable(LPVOID baseAddress);
  */
 bool FixImportTable(LPVOID baseAddress);
 
-
+bool SetImageBase(LPVOID baseAddress);
 
 
 // 对齐SectionAlignment
@@ -48,10 +48,7 @@ bool FixImportTable(LPVOID baseAddress);
 // 返回值: 返回内存对齐之后的值
 DWORD Align(DWORD dwSize, DWORD dwAlignment);
 
-// 修改PE文件加载基址IMAGE_NT_HEADERS.OptionalHeader.ImageBase
-// lpBaseAddress: 内存DLL数据按SectionAlignment大小对齐映射到进程内存中的内存基址
-// 返回值: 成功返回TRUE，否则返回FALSE
-BOOL SetImageBase(LPVOID lpBaseAddress);
+
 
 // 调用DLL的入口函数DllMain,函数地址即为PE文件的入口点IMAGE_NT_HEADERS.OptionalHeader.AddressOfEntryPoint
 // lpBaseAddress: 内存DLL数据按SectionAlignment大小对齐映射到进程内存中的内存基址

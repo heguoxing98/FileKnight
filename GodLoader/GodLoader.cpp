@@ -20,25 +20,15 @@ LPVOID LoadDll(LPVOID data, unsigned long dataSize)
 	if (FALSE == FixRelocationTable(baseAddress))
 		return nullptr;
 
-	// 填写PE文件导入表信息
-	if (FALSE == DoImportTable(baseAddress))
+	if (FALSE == FixImportTable(baseAddress))
 		return nullptr;
 
-	//修改页属性。应该根据每个页的属性单独设置其对应内存页的属性。
-	//统一设置成一个属性PAGE_EXECUTE_READWRITE
-	DWORD dwOldProtect = 0;
-	if (FALSE == ::VirtualProtect(baseAddress, sizeOfImage, PAGE_EXECUTE_READWRITE, &dwOldProtect))
-	{
-		//ShowError("VirtualProtect");
-		return NULL;
-	}
+	DWORD oldProtect = 0;
+	if (FALSE == ::VirtualProtect(baseAddress, sizeOfImage, PAGE_EXECUTE_READWRITE, &oldProtect))
+		return nullptr;
 
-	// 修改PE文件加载基址IMAGE_NT_HEADERS.OptionalHeader.ImageBase
 	if (FALSE == SetImageBase(baseAddress))
-	{
-		//ShowError("SetImageBase");
-		return NULL;
-	}
+		return nullptr;
 
 	// 调用DLL的入口函数DllMain,函数地址即为PE文件的入口点IMAGE_NT_HEADERS.OptionalHeader.AddressOfEntryPoint
 	if (FALSE == CallDllMain(baseAddress))
@@ -149,76 +139,78 @@ bool FixRelocationTable(LPVOID baseAddress)
 
 bool FixImportTable(LPVOID baseAddress)
 {
-	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)baseAddress;
-	PIMAGE_NT_HEADERS pNtHeaders = (PIMAGE_NT_HEADERS)((ULONG32)pDosHeader + pDosHeader->e_lfanew);
-	PIMAGE_IMPORT_DESCRIPTOR pImportTable = (PIMAGE_IMPORT_DESCRIPTOR)((DWORD)pDosHeader +
-		pNtHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress);
+	PIMAGE_DOS_HEADER dosHeaderPtr = (PIMAGE_DOS_HEADER)baseAddress;
+	PIMAGE_NT_HEADERS ntHeadersPtr = (PIMAGE_NT_HEADERS)((ULONG32)dosHeaderPtr + dosHeaderPtr->e_lfanew);
+	PIMAGE_IMPORT_DESCRIPTOR importTable = (PIMAGE_IMPORT_DESCRIPTOR)((DWORD)dosHeaderPtr + ntHeadersPtr->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress);
 
-	// 循环遍历DLL导入表中的DLL及获取导入表中的函数地址
-	char* lpDllName = NULL;
-	HMODULE hDll = NULL;
-	PIMAGE_THUNK_DATA lpImportNameArray = NULL;
-	PIMAGE_IMPORT_BY_NAME lpImportByName = NULL;
-	PIMAGE_THUNK_DATA lpImportFuncAddrArray = NULL;
-	FARPROC lpFuncAddress = NULL;
-	DWORD i = 0;
+	char* dllName = nullptr;
+	HMODULE desDllHandle = NULL;
+	PIMAGE_THUNK_DATA importNameArray = nullptr;
+	PIMAGE_IMPORT_BY_NAME importByName = nullptr;
+	PIMAGE_THUNK_DATA importFuncAddrArray = nullptr;
+	FARPROC funcAddress = nullptr;
+	DWORD index = 0;
 
 	while (TRUE)
 	{
-		if (0 == pImportTable->OriginalFirstThunk)
+		if (0 == importTable->OriginalFirstThunk)
 		{
 			break;
 		}
 
-		// 获取导入表中DLL的名称并加载DLL
-		lpDllName = (char*)((DWORD)pDosHeader + pImportTable->Name);
-		hDll = ::GetModuleHandleA(lpDllName);
-		if (NULL == hDll)
+		dllName = (char*)((DWORD)dosHeaderPtr + importTable->Name);
+		desDllHandle = ::GetModuleHandleA(dllName);
+		if (NULL == desDllHandle)
 		{
-			hDll = ::LoadLibraryA(lpDllName);
-			if (NULL == hDll)
+			desDllHandle = ::LoadLibraryA(dllName);
+			if (NULL == desDllHandle)
 			{
-				pImportTable++;
+				importTable++;
 				continue;
 			}
 		}
 
-		i = 0;
-		// 获取OriginalFirstThunk以及对应的导入函数名称表首地址
-		lpImportNameArray = (PIMAGE_THUNK_DATA)((DWORD)pDosHeader + pImportTable->OriginalFirstThunk);
-		// 获取FirstThunk以及对应的导入函数地址表首地址
-		lpImportFuncAddrArray = (PIMAGE_THUNK_DATA)((DWORD)pDosHeader + pImportTable->FirstThunk);
+		index = 0;
+		importNameArray = (PIMAGE_THUNK_DATA)((DWORD)dosHeaderPtr + importTable->OriginalFirstThunk);
+		importFuncAddrArray = (PIMAGE_THUNK_DATA)((DWORD)dosHeaderPtr + importTable->FirstThunk);
 		while (TRUE)
 		{
-			if (0 == lpImportNameArray[i].u1.AddressOfData)
+			if (0 == importNameArray[index].u1.AddressOfData)
 			{
 				break;
 			}
-
-			// 获取IMAGE_IMPORT_BY_NAME结构
-			lpImportByName = (PIMAGE_IMPORT_BY_NAME)((DWORD)pDosHeader + lpImportNameArray[i].u1.AddressOfData);
+			importByName = (PIMAGE_IMPORT_BY_NAME)((DWORD)dosHeaderPtr + importNameArray[index].u1.AddressOfData);
 
 			// 判断导出函数是序号导出还是函数名称导出
-			if (0x80000000 & lpImportNameArray[i].u1.Ordinal)
+			if (0x80000000 & importNameArray[index].u1.Ordinal)
 			{
 				// 序号导出
 				// 当IMAGE_THUNK_DATA值的最高位为1时，表示函数以序号方式输入，这时，低位被看做是一个函数序号
-				lpFuncAddress = ::GetProcAddress(hDll, (LPCSTR)(lpImportNameArray[i].u1.Ordinal & 0x0000FFFF));
+				funcAddress = ::GetProcAddress(desDllHandle, (LPCSTR)(importNameArray[index].u1.Ordinal & 0x0000FFFF));
 			}
 			else
 			{
 				// 名称导出
-				lpFuncAddress = ::GetProcAddress(hDll, (LPCSTR)lpImportByName->Name);
+				funcAddress = ::GetProcAddress(desDllHandle, (LPCSTR)importByName->Name);
 			}
-			// 注意此处的函数地址表的赋值，要对照PE格式进行装载，不要理解错了！！！
-			lpImportFuncAddrArray[i].u1.Function = (DWORD)lpFuncAddress;
-			i++;
+
+			importFuncAddrArray[index].u1.Function = (DWORD)funcAddress;
+			index++;
 		}
 
-		pImportTable++;
+		importTable++;
 	}
 
 	return TRUE;
+}
+
+bool SetImageBase(LPVOID baseAddress)
+{
+	PIMAGE_DOS_HEADER dosHeaderPtr = (PIMAGE_DOS_HEADER)baseAddress;
+	PIMAGE_NT_HEADERS ntHeadersPtr = (PIMAGE_NT_HEADERS)((ULONG32)dosHeaderPtr + dosHeaderPtr->e_lfanew);
+	ntHeadersPtr->OptionalHeader.ImageBase = (ULONG32)baseAddress;
+
+	return true;
 }
 
 
@@ -241,17 +233,7 @@ DWORD Align(DWORD dwSize, DWORD dwAlignment)
 	return dwRet;
 }
 
-// 修改PE文件加载基址IMAGE_NT_HEADERS.OptionalHeader.ImageBase
-// lpBaseAddress: 内存DLL数据按SectionAlignment大小对齐映射到进程内存中的内存基址
-// 返回值: 成功返回TRUE，否则返回FALSE
-BOOL SetImageBase(LPVOID lpBaseAddress)
-{
-	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)lpBaseAddress;
-	PIMAGE_NT_HEADERS pNtHeaders = (PIMAGE_NT_HEADERS)((ULONG32)pDosHeader + pDosHeader->e_lfanew);
-	pNtHeaders->OptionalHeader.ImageBase = (ULONG32)lpBaseAddress;
 
-	return TRUE;
-}
 
 
 // 调用DLL的入口函数DllMain,函数地址即为PE文件的入口点IMAGE_NT_HEADERS.OptionalHeader.AddressOfEntryPoint
