@@ -44,7 +44,7 @@ int main()
 	}
 
 	delete[] fileData;
-	fileData = NULL;
+	fileData = nullptr;
 	CloseHandle(fileObj);
 
 	system("pause");
