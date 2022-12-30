@@ -32,34 +32,17 @@ int main()
 	if (FALSE == ReadFile(fileObj, fileData, fileSize.u.LowPart, nullptr, nullptr))
 		return 0;
 
-	// 将内存DLL加载到程序中
-	LPVOID lpBaseAddress = LoadDll(fileData, fileSize.u.LowPart);
-	printf("2222");
-	if (NULL == lpBaseAddress)
-	{
-		//ShowError("MmLoadLibrary");
-		return 3;
-	}
-	printf("DLL加载成功\n");
+	LPVOID baseAddress = loader::LoadDll(fileData, fileSize.u.LowPart);
+	if (NULL == baseAddress)
+		return 0;
 
-	// 获取DLL导出函数并调用
-	typedef BOOL(*typedef_ShowMessage)(char* lpszText, char* lpszCaption);
-	typedef_ShowMessage ShowMessage = (typedef_ShowMessage)MmGetProcAddress(lpBaseAddress, (PCHAR)"ShowMessage");
-	if (NULL == ShowMessage)
-	{
-		//ShowError("MmGetProcAddress");
-		return 4;
-	}
-	//ShowMessage("I am Demon·Gan\n", "Who Are You");
 
-	// 释放从内存加载的DLL
-	BOOL bRet = MmFreeLibrary(lpBaseAddress);
-	if (FALSE == bRet)
+	bool ok = loader::FreeDll(baseAddress);
+	if (false == ok)
 	{
-		//ShowError("MmFreeLirbary");
+		
 	}
 
-	// 释放
 	delete[] fileData;
 	fileData = NULL;
 	CloseHandle(fileObj);

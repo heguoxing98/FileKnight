@@ -2,40 +2,38 @@
 #include<windows.h>
 #include<stdio.h>
 
+namespace loader
+{
 LPVOID LoadDll(LPVOID data, unsigned long dataSize)
 {
 	LPVOID baseAddress = nullptr;
-	
+
 	DWORD sizeOfImage = GetSizeOfImage(data);
 
 	baseAddress = VirtualAlloc(NULL, sizeOfImage, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE);
 	if (nullptr == baseAddress)
 		return nullptr;
-	
+
 	RtlZeroMemory(baseAddress, sizeOfImage);
 
 	if (false == MapDataToMemory(data, baseAddress))
 		return nullptr;
 
-	if (FALSE == FixRelocationTable(baseAddress))
+	if (false == FixRelocationTable(baseAddress))
 		return nullptr;
 
-	if (FALSE == FixImportTable(baseAddress))
+	if (false == FixImportTable(baseAddress))
 		return nullptr;
 
 	DWORD oldProtect = 0;
-	if (FALSE == ::VirtualProtect(baseAddress, sizeOfImage, PAGE_EXECUTE_READWRITE, &oldProtect))
+	if (false == ::VirtualProtect(baseAddress, sizeOfImage, PAGE_EXECUTE_READWRITE, &oldProtect))
 		return nullptr;
 
-	if (FALSE == SetImageBase(baseAddress))
+	if (false == SetImageBase(baseAddress))
 		return nullptr;
 
-	// 调用DLL的入口函数DllMain,函数地址即为PE文件的入口点IMAGE_NT_HEADERS.OptionalHeader.AddressOfEntryPoint
-	if (FALSE == CallDllMain(baseAddress))
-	{
-		//ShowError("CallDllMain");
-		return NULL;
-	}
+	if (false == CallDllMain(baseAddress))
+		return nullptr;
 
 	return baseAddress;
 }
@@ -53,7 +51,7 @@ bool MapDataToMemory(LPVOID data, LPVOID baseAddress)
 {
 	PIMAGE_DOS_HEADER dosHeaderPtr = (PIMAGE_DOS_HEADER)data;
 	PIMAGE_NT_HEADERS ntHeadesPtr = (PIMAGE_NT_HEADERS)((ULONG32)dosHeaderPtr + dosHeaderPtr->e_lfanew);
-	
+
 	DWORD sizeOfHeaders = ntHeadesPtr->OptionalHeader.SizeOfHeaders;
 	RtlCopyMemory(baseAddress, data, sizeOfHeaders);
 
@@ -78,12 +76,12 @@ bool MapDataToMemory(LPVOID data, LPVOID baseAddress)
 #endif 
 
 		sizeOfRawData = sectionHeaderPtr->SizeOfRawData;
-		
+
 		::RtlCopyMemory(destMem, srcMem, sizeOfRawData);
-		
+
 		sectionHeaderPtr++;
 	}
-	
+
 	return true;
 }
 
@@ -213,100 +211,64 @@ bool SetImageBase(LPVOID baseAddress)
 	return true;
 }
 
-
-
-// 对齐SectionAlignment
-// dwSize: 表示未对齐前内存的大小
-// dwAlignment: 对齐大小值
-// 返回值: 返回内存对齐之后的值
-DWORD Align(DWORD dwSize, DWORD dwAlignment)
+bool CallDllMain(LPVOID baseAddress)
 {
-	DWORD dwRet = 0;
-	DWORD i = 0, j = 0;
-	i = dwSize / dwAlignment;
-	j = dwSize % dwAlignment;
-	if (0 != j)
-	{
-		i++;
-	}
-	dwRet = i * dwAlignment;
-	return dwRet;
+	fnDllMain _DllMain = nullptr;
+	PIMAGE_DOS_HEADER dosHeader = (PIMAGE_DOS_HEADER)baseAddress;
+	PIMAGE_NT_HEADERS ntHeaders = (PIMAGE_NT_HEADERS)((ULONG32)dosHeader + dosHeader->e_lfanew);
+	_DllMain = (fnDllMain)((ULONG32)dosHeader + ntHeaders->OptionalHeader.AddressOfEntryPoint);
+
+	BOOL isOk = _DllMain((HINSTANCE)baseAddress, DLL_PROCESS_ATTACH, NULL);
+
+	return isOk;
 }
 
-
-
-
-// 调用DLL的入口函数DllMain,函数地址即为PE文件的入口点IMAGE_NT_HEADERS.OptionalHeader.AddressOfEntryPoint
-// lpBaseAddress: 内存DLL数据按SectionAlignment大小对齐映射到进程内存中的内存基址
-// 返回值: 成功返回TRUE，否则返回FALSE
-BOOL CallDllMain(LPVOID lpBaseAddress)
+LPVOID GetProcAddressAnsi(LPVOID baseAddress, PCHAR desName)
 {
-	typedef_DllMain DllMain = NULL;
-	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)lpBaseAddress;
-	PIMAGE_NT_HEADERS pNtHeaders = (PIMAGE_NT_HEADERS)((ULONG32)pDosHeader + pDosHeader->e_lfanew);
-	DllMain = (typedef_DllMain)((ULONG32)pDosHeader + pNtHeaders->OptionalHeader.AddressOfEntryPoint);
-	// 调用入口函数,附加进程DLL_PROCESS_ATTACH
-	BOOL bRet = DllMain((HINSTANCE)lpBaseAddress, DLL_PROCESS_ATTACH, NULL);
-	if (FALSE == bRet)
+	LPVOID desAddress = nullptr;
+
+	PIMAGE_DOS_HEADER dosHeader = (PIMAGE_DOS_HEADER)baseAddress;
+	PIMAGE_NT_HEADERS ntHeaders = (PIMAGE_NT_HEADERS)((ULONG32)dosHeader + dosHeader->e_lfanew);
+	PIMAGE_EXPORT_DIRECTORY exportTable = (PIMAGE_EXPORT_DIRECTORY)((DWORD)dosHeader + ntHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress);
+
+	PCHAR  funcName = nullptr;
+	WORD   index = 0;
+	DWORD  numberOfNames = exportTable->NumberOfNames;
+	PDWORD addressOfNamesArray = (PDWORD)((DWORD)dosHeader + exportTable->AddressOfNames);
+	PWORD  addressOfNameOrdinalsArray = (PWORD)((DWORD)dosHeader + exportTable->AddressOfNameOrdinals);
+	PDWORD addressOfFunctionsArray = (PDWORD)((DWORD)dosHeader + exportTable->AddressOfFunctions);
+
+
+	for (DWORD i = 0; i < numberOfNames; i++)
 	{
-		//ShowError("DllMain");
-	}
-
-	return bRet;
-}
-
-
-// 模拟GetProcAddress获取内存DLL的导出函数
-// lpBaseAddress: 内存DLL文件加载到进程中的加载基址
-// lpszFuncName: 导出函数的名字
-// 返回值: 返回导出函数的的地址
-LPVOID MmGetProcAddress(LPVOID lpBaseAddress, PCHAR lpszFuncName)
-{
-	LPVOID lpFunc = NULL;
-	// 获取导出表
-	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)lpBaseAddress;
-	PIMAGE_NT_HEADERS pNtHeaders = (PIMAGE_NT_HEADERS)((ULONG32)pDosHeader + pDosHeader->e_lfanew);
-	PIMAGE_EXPORT_DIRECTORY pExportTable = (PIMAGE_EXPORT_DIRECTORY)((DWORD)pDosHeader + pNtHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress);
-	// 获取导出表的数据
-	PDWORD lpAddressOfNamesArray = (PDWORD)((DWORD)pDosHeader + pExportTable->AddressOfNames);
-	PCHAR lpFuncName = NULL;
-	PWORD lpAddressOfNameOrdinalsArray = (PWORD)((DWORD)pDosHeader + pExportTable->AddressOfNameOrdinals);
-	WORD wHint = 0;
-	PDWORD lpAddressOfFunctionsArray = (PDWORD)((DWORD)pDosHeader + pExportTable->AddressOfFunctions);
-
-	DWORD dwNumberOfNames = pExportTable->NumberOfNames;
-	DWORD i = 0;
-	// 遍历导出表的导出函数的名称, 并进行匹配
-	for (i = 0; i < dwNumberOfNames; i++)
-	{
-		lpFuncName = (PCHAR)((DWORD)pDosHeader + lpAddressOfNamesArray[i]);
-		if (0 == ::lstrcmpiA(lpFuncName, lpszFuncName))
+		funcName = (PCHAR)((DWORD)dosHeader + addressOfNamesArray[i]);
+		if (0 == ::lstrcmpiA(funcName, desName))
 		{
-			// 获取导出函数地址
-			wHint = lpAddressOfNameOrdinalsArray[i];
-			lpFunc = (LPVOID)((DWORD)pDosHeader + lpAddressOfFunctionsArray[wHint]);
+			index = addressOfNameOrdinalsArray[i];
+			desAddress = (LPVOID)((DWORD)dosHeader + addressOfFunctionsArray[index]);
 			break;
 		}
 	}
-	printf("11111112222222333333333");
-	return lpFunc;
+	return desAddress;
 }
 
-
-// 释放从内存加载的DLL到进程内存的空间
-// lpBaseAddress: 内存DLL数据按SectionAlignment大小对齐映射到进程内存中的内存基址
-// 返回值: 成功返回TRUE，否则返回FALSE
-BOOL MmFreeLibrary(LPVOID lpBaseAddress)
+bool FreeDll(LPVOID baseAddress)
 {
-	BOOL bRet = FALSE;
+	bool isOk = false;
 
-	if (NULL == lpBaseAddress)
+	if (NULL == baseAddress)
 	{
-		return bRet;
+		return isOk;
 	}
 
-	bRet = VirtualFree(lpBaseAddress, 0, MEM_RELEASE);
-	lpBaseAddress = NULL;
+	isOk = VirtualFree(baseAddress, 0, MEM_RELEASE);
+	baseAddress = NULL;
 
-	return bRet;
+	return isOk;
 }
+
+
+
+
+}
+
